@@ -1,0 +1,24 @@
+# Argo CD: wartości chartu argo/argo-cd.
+# Używane dwukrotnie:
+#   1) przy pierwszej, ręcznej instalacji: helm install (docs/01-argocd.md),
+#   2) przez apps/argocd.yaml, gdy Argo CD zarządza już samym sobą (self-managed).
+
+global:
+  domain: argocd.homelab.local
+
+configs:
+  params:
+    # Lab bez TLS: serwer Argo CD działa po HTTP za Traefikiem.
+    server.insecure: true
+  cm:
+    # Jak często Argo CD sprawdza repo bez webhooka (domyślnie 180 s).
+    timeout.reconciliation: 60s
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+
+# Brak SSO w labie: logujemy się kontem admin.
+dex:
+  enabled: false

@@ -1,0 +1,30 @@
+# Argo CD zarządza samym sobą (self-managed).
+# Aktualizacja Argo CD = zmiana targetRevision albo values/argocd.yaml + commit.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-cd
+      targetRevision: 10.17.1
+      helm:
+        releaseName: argocd
+        valueFiles:
+          - $values/values/argocd.yaml
+    # Drugie źródło udostępnia pliki z tego repo pod aliasem $values.
+    - repoURL: https://github.com/arturmachura/homlab-edu.git
+      targetRevision: main
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: false     # Argo CD nie usuwa własnych zasobów: ostrożność przy self-management
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true   # CRD Argo CD są duże

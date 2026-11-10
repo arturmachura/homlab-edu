@@ -1,0 +1,26 @@
+# podinfo: mała aplikacja do ćwiczeń GitOps w etapie 1
+# (https://github.com/stefanprodan/podinfo).
+# Zwykłe manifesty z manifests/podinfo, łatwe do zmieniania w ćwiczeniach.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: podinfo
+  namespace: argocd
+  finalizers:
+    # Usunięcie Application usuwa też jej zasoby z klastra.
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/arturmachura/homlab-edu.git
+    targetRevision: main
+    path: manifests/podinfo
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: podinfo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

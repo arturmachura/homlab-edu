@@ -1,0 +1,10 @@
+# Lokalne sekrety: nigdy nie trafiają do Git
+*.env
+secrets/
+*.secret.yaml
+
+# Edytory / system
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
