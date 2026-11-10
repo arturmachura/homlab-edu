@@ -1,0 +1,160 @@
+# kube-prometheus-stack: Prometheus, Alertmanager, Grafana i exportery dla homelab K3s.
+# Pełna lista ustawień:
+#   helm show values prometheus-community/kube-prometheus-stack --version 93.1.2
+#
+# Rozmieszczenie: backendy (Prometheus, Alertmanager, Grafana, Operator, kube-state-metrics)
+# idą na worker-3, czyli węzeł dedykowany obserwowalności (taint dedicated=observability).
+# node-exporter działa jako DaemonSet na KAŻDYM węźle, bo zbiera metryki systemu.
+
+# ---------------------------------------------------------------------------
+# K3s: kube-controller-manager, kube-scheduler i kube-proxy działają w jednym
+# procesie k3s i domyślnie nie wystawiają metryk na zewnątrz. etcd nie istnieje
+# (K3s z jednym serwerem używa SQLite/kine). Wyłączamy te cele, inaczej będą
+# na stałe "down" i odpalą alerty KubeControllerManagerDown itp.
+# ---------------------------------------------------------------------------
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeEtcd:
+  enabled: false
+
+defaultRules:
+  rules:
+    # Reguły dla wyłączonych wyżej komponentów.
+    etcd: false
+    kubeControllerManager: false
+    kubeSchedulerAlerting: false
+    kubeSchedulerRecording: false
+    kubeProxy: false
+
+# ---------------------------------------------------------------------------
+# Prometheus Operator: zarządza Prometheusem i Alertmanagerem przez CRD
+# (Prometheus, ServiceMonitor, PodMonitor, PrometheusRule...).
+# ---------------------------------------------------------------------------
+prometheusOperator:
+  nodeSelector:
+    role: observability
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+
+# ---------------------------------------------------------------------------
+# Prometheus
+# ---------------------------------------------------------------------------
+prometheus:
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - prometheus.homelab.local
+    paths:
+      - /
+  prometheusSpec:
+    nodeSelector:
+      role: observability
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: observability
+        effect: NoSchedule
+
+    # Domyślnie Prometheus z tego chartu wybiera tylko ServiceMonitory/PodMonitory/
+    # PrometheusRule z etykietą release=kube-prometheus-stack. Wyłączamy ten filtr,
+    # więc zbierane są obiekty z CAŁEGO klastra, bez specjalnych etykiet.
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    scrapeConfigSelectorNilUsesHelmValues: false
+
+    retention: 7d
+    retentionSize: 18GB          # mniej niż rozmiar wolumenu, z zapasem na WAL
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: local-path
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+    resources:
+      requests:
+        cpu: 200m
+        memory: 1Gi
+      limits:
+        memory: 4Gi
+
+# ---------------------------------------------------------------------------
+# Alertmanager
+# ---------------------------------------------------------------------------
+alertmanager:
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - alertmanager.homelab.local
+    paths:
+      - /
+  alertmanagerSpec:
+    nodeSelector:
+      role: observability
+    tolerations:
+      - key: dedicated
+        operator: Equal
+        value: observability
+        effect: NoSchedule
+
+# ---------------------------------------------------------------------------
+# Grafana OSS
+# ---------------------------------------------------------------------------
+grafana:
+  # Hasło admina z sekretu tworzonego ręcznie (krok 2.2). Losowe hasło generowane
+  # przez chart zmieniałoby się przy każdym renderowaniu w Argo CD.
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hosts:
+      - grafana.homelab.local
+  # Ustawienia użytkowników, preferencje i ręcznie tworzone dashboardy (SQLite)
+  # przetrwają restart poda. Dashboardy "jako kod" dodamy w kolejnych etapach.
+  persistence:
+    enabled: true
+    storageClassName: local-path
+    size: 2Gi
+  nodeSelector:
+    role: observability
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+  testFramework:
+    enabled: false      # pod testowy Helma jest zbędny w Argo CD
+
+# ---------------------------------------------------------------------------
+# Exportery
+# ---------------------------------------------------------------------------
+kube-state-metrics:
+  # Stan obiektów Kubernetes (Deploymenty, Pody, PVC...) jako metryki.
+  nodeSelector:
+    role: observability
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+
+prometheus-node-exporter:
+  # Metryki systemu operacyjnego (CPU, RAM, dysk, sieć). DaemonSet musi tolerować
+  # taint worker-3, inaczej ten węzeł nie byłby monitorowany.
+  tolerations:
+    - operator: Exists

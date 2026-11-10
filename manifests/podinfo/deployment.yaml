@@ -26,7 +26,7 @@ spec:
             - name: PODINFO_UI_MESSAGE
               value: "Witaj w homelabie, wdrożone przez Argo CD"
             - name: PODINFO_UI_COLOR
-              value: "#34577c"
+              value: "#2e7d32"
           ports:
             - name: http
               containerPort: 9898
