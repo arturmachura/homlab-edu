@@ -12,7 +12,7 @@ configs:
     server.insecure: true
   cm:
     # Jak często Argo CD sprawdza repo bez webhooka (domyślnie 180 s).
-    timeout.reconciliation: 90s
+    timeout.reconciliation: 60s
 
 server:
   ingress:
