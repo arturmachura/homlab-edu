@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: podinfo
-          image: ghcr.io/stefanprodan/podinfo:9.9.9
+          image: ghcr.io/stefanprodan/podinfo:6.17.0
           command:
             - ./podinfo
             - --port=9898
