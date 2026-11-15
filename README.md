@@ -50,8 +50,8 @@ Każdy krok wykonujesz ręcznie, rozumiejąc, co robi: bez skryptów „uruchom 
 | # | Etap | Instrukcja | Status |
 |---|---|---|---|
 | 0 | Przygotowanie | [docs/00-przygotowanie.md](docs/00-przygotowanie.md) | ✅ |
-| 1 | GitOps z Argo CD | [docs/01-argocd.md](docs/01-argocd.md) | ⏳ |
-| 2 | Metryki: Prometheus, Alertmanager i Grafana | [docs/02-prometheus-grafana.md](docs/02-prometheus-grafana.md) | |
+| 1 | GitOps z Argo CD | [docs/01-argocd.md](docs/01-argocd.md) | ✅ |
+| 2 | Metryki: Prometheus, Alertmanager i Grafana | [docs/02-prometheus-grafana.md](docs/02-prometheus-grafana.md) | ⏳ |
 | 3 | Logi i trace'y: Loki i Tempo | — | |
 | 4 | Aplikacja z OpenTelemetry | — | |
 | 5 | Awarie aplikacyjne (feature flagi) | — | |
