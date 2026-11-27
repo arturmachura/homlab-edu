@@ -9,7 +9,7 @@ spec:
   project: default
   sources:
     - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
-      chart: otel-collector
+      chart: opentelemetry-collector
       targetRevision: 0.183.2
       helm:
         releaseName: otel-collector
@@ -21,8 +21,9 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: otel
-    CreateNamespace: true
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
