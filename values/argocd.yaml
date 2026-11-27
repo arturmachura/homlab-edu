@@ -14,10 +14,21 @@ configs:
     # Jak często Argo CD sprawdza repo bez webhooka (domyślnie 180 s).
     timeout.reconciliation: 60s
 
-server:
-  ingress:
+controller:
+  metrics:
     enabled: true
-    ingressClassName: traefik
+    serviceMonitor:
+      enabled: true
+server:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
+repoServer:
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: true
 
 # Brak SSO w labie: logujemy się kontem admin.
 dex:
