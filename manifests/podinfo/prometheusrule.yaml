@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: podinfo
+spec:
+  groups:
+    - name: podinfo
+      rules:
+        - alert: PodinfoReplicasMissing
+          expr: kube_deployment_status_replicas_available{namespace="podinfo", deployment="podinfo"} < 2
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "podinfo ma {{ $value }} z 2 replik"
+            description: "Deployment podinfo działa w niepełnym składzie od ponad minuty."
