@@ -71,6 +71,10 @@ prometheus:
     ruleSelectorNilUsesHelmValues: false
     probeSelectorNilUsesHelmValues: false
     scrapeConfigSelectorNilUsesHelmValues: false
+    enableRemoteWriteReceiver: true
+    enableOTLPReceiver: true
+    enableFeatures:
+      - exemplar-storage
 
     retention: 7d
     retentionSize: 18GB          # mniej niż rozmiar wolumenu, z zapasem na WAL
@@ -139,6 +143,47 @@ grafana:
       effect: NoSchedule
   testFramework:
     enabled: false      # pod testowy Helma jest zbędny w Argo CD
+  sidecar:
+    datasources:
+      # Metryka z exemplarem → link do trace'a w Tempo.
+      exemplarTraceIdDestinations:
+        datasourceUid: tempo
+        traceIdLabelName: trace_id
+        urlDisplayLabel: Pokaż trace
+  additionalDataSources:
+    - name: Loki
+      uid: loki
+      type: loki
+      url: http://loki.monitoring.svc.cluster.local:3100
+      access: proxy
+      jsonData:
+        # Log z polem trace_id → link do trace'a w Tempo.
+        derivedFields:
+          - name: TraceID
+            matcherType: label        # szukaj w etykietach/structured metadata, nie w treści
+            matcherRegex: trace_id
+            datasourceUid: tempo
+            url: "$${__value.raw}"    # $$ = dosłowny $ w provisioningu Grafany
+            urlDisplayLabel: Pokaż trace
+    - name: Tempo
+      uid: tempo
+      type: tempo
+      url: http://tempo.monitoring.svc.cluster.local:3200
+      access: proxy
+      jsonData:
+        tracesToLogsV2:               # span → logi z tego samego trace'a
+          datasourceUid: loki
+          spanStartTimeShift: "-5m"
+          spanEndTimeShift: "5m"
+          filterByTraceID: true
+        tracesToMetrics:              # span → metryki serwisu
+          datasourceUid: prometheus
+        serviceMap:                   # mapa serwisów z metryk service-graphs
+          datasourceUid: prometheus
+        nodeGraph:
+          enabled: true
+        lokiSearch:
+          datasourceUid: loki
 
 # ---------------------------------------------------------------------------
 # Exportery
