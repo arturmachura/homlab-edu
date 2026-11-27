@@ -100,7 +100,7 @@ Przeczytaj values i znajdź każde ustawienie w `helm show values`:
 Zobacz konfigurację, którą faktycznie dostanie kolektor, czyli z dołożonymi presetami:
 
 ```bash
-helm template otel-collector open-telemetry/opentelemetry-collector --version 0.178.3 \
+helm template otel-collector open-telemetry/opentelemetry-collector --version 0.183.2 \
   -n otel -f values/otel-collector.yaml | sed -n '/relay: |/,/^---/p'
 ```
 
