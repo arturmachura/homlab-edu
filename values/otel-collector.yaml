@@ -1,0 +1,90 @@
+# OpenTelemetry Collector jako agent (DaemonSet): jeden pod na każdym węźle.
+# Pełna lista ustawień:
+#   helm show values open-telemetry/opentelemetry-collector --version 0.178.3
+#
+# Droga danych:
+#   aplikacje ──OTLP──► kolektor ──► Tempo      (trace'y)
+#   pliki logów podów ─► kolektor ──► Loki       (logi)
+#   aplikacje ──OTLP──► kolektor ──► Prometheus (metryki)
+
+mode: daemonset
+fullnameOverride: otel-collector       # krótka nazwa Service: otel-collector.otel.svc
+
+image:
+  # Dystrybucja "contrib" zawiera komponenty spoza rdzenia (k8sattributes, filelog...).
+  repository: otel/opentelemetry-collector-contrib
+
+presets:
+  # Dodaje receiver filelog czytający /var/log/pods/* na węźle (stdout/stderr wszystkich kontenerów).
+  logsCollection:
+    enabled: true
+    includeCollectorLogs: false        # bez własnych logów, inaczej powstaje pętla
+    storeCheckpoints: true             # po restarcie nie czyta plików od początku
+  # Dodaje processor k8sattributes: wzbogaca telemetrię o namespace, pod, deployment, węzeł
+  # (na podstawie IP nadawcy lub ścieżki pliku logu) + potrzebne uprawnienia RBAC.
+  kubernetesAttributes:
+    enabled: true
+
+# Agent na KAŻDYM węźle, również na worker-3 (logi Prometheusa, Loki, Tempo).
+tolerations:
+  - operator: Exists
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+
+service:
+  # Dla DaemonSet Service trzeba włączyć jawnie. Chart ustawia internalTrafficPolicy: Local,
+  # więc aplikacja zawsze trafia do agenta na SWOIM węźle.
+  enabled: true
+
+ports:
+  # Tylko OTLP: odbiorniki Jaegera i Zipkina są zbędne.
+  jaeger-compact:
+    enabled: false
+  jaeger-thrift:
+    enabled: false
+  jaeger-grpc:
+    enabled: false
+  zipkin:
+    enabled: false
+  metrics:
+    enabled: true                      # port 8888: metryki samego kolektora
+
+podMonitor:
+  enabled: true                        # Prometheus scrapuje metryki kolektora
+
+config:
+  receivers:
+    jaeger: null
+    zipkin: null
+    prometheus: null
+
+  exporters:
+    otlp_grpc/tempo:
+      endpoint: tempo.monitoring.svc.cluster.local:4317
+      tls:
+        insecure: true
+    otlp_http/loki:
+      endpoint: http://loki.monitoring.svc.cluster.local:3100/otlp
+    otlp_http/prometheus:
+      endpoint: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/otlp
+
+  service:
+    pipelines:
+      # Receivery i procesory z presetów (filelog, k8sattributes) chart dopisuje sam.
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [otlp_grpc/tempo]
+      logs:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [otlp_http/loki]
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [otlp_http/prometheus]

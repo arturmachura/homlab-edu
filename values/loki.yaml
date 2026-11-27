@@ -1,0 +1,84 @@
+# Loki: magazyn logów, tryb monolityczny (jeden proces, dane na dysku lokalnym).
+# Pełna lista ustawień:
+#   helm show values grafana-community/loki --version 21.2.0
+#
+# Logi trafiają do Loki przez natywny endpoint OTLP (/otlp/v1/logs) z kolektora OpenTelemetry.
+
+# Monolithic = wszystkie komponenty Loki w jednym procesie. Wystarcza do kilkudziesięciu GB/dzień.
+deploymentMode: Monolithic
+
+loki:
+  # Bez multi-tenancy: wszystkie logi w jednym tenancie "fake", bez nagłówka X-Scope-OrgID.
+  auth_enabled: false
+  commonConfig:
+    replication_factor: 1           # jedna instancja = brak replikacji
+  storage:
+    type: filesystem                # zamiast S3: chunki i indeks na PVC
+  schemaConfig:
+    configs:
+      - from: "2026-11-01"
+        store: tsdb                 # aktualny format indeksu
+        object_store: filesystem
+        schema: v13                 # wymagany dla structured metadata (OTLP)
+        index:
+          prefix: loki_index_
+          period: 24h
+  limits_config:
+    # Atrybuty OTLP, które nie są etykietami (np. trace_id, span_id), trafiają do
+    # "structured metadata": są przeszukiwalne, ale nie zwiększają liczby strumieni.
+    allow_structured_metadata: true
+    volume_enabled: true
+    retention_period: 168h          # 7 dni
+    reject_old_samples: true
+    reject_old_samples_max_age: 168h
+  compactor:
+    retention_enabled: true         # bez tego retention_period nie usuwa danych
+    delete_request_store: filesystem
+  pattern_ingester:
+    enabled: true                   # wykrywanie wzorców w logach (Grafana: Logs Drilldown → Patterns)
+
+singleBinary:
+  replicas: 1
+  persistence:
+    enabled: true
+    storageClass: local-path
+    size: 20Gi
+  nodeSelector:
+    role: observability
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: observability
+      effect: NoSchedule
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+# Tryb SimpleScalable (read/write/backend) wyłączony: chart nie pozwala, by oba tryby
+# miały repliki jednocześnie.
+read:
+  replicas: 0
+write:
+  replicas: 0
+backend:
+  replicas: 0
+
+# Komponenty zbędne w homelabie:
+gateway:
+  enabled: false        # nginx przed Loki; kolektor i Grafana łączą się bezpośrednio
+chunksCache:
+  enabled: false        # memcached, kilka GB RAM, przydatny przy dużym ruchu
+resultsCache:
+  enabled: false
+lokiCanary:
+  enabled: false        # generator logów testowych
+test:
+  enabled: false        # pod testowy Helma
+
+monitoring:
+  # Prometheus scrapuje metryki samego Loki (ServiceMonitor z etapu 2 działa w całym klastrze).
+  serviceMonitor:
+    enabled: true

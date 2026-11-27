@@ -1,0 +1,57 @@
+# Tempo: magazyn trace'ów, tryb monolityczny (jeden proces, dane na dysku lokalnym).
+# Pełna lista ustawień:
+#   helm show values grafana-community/tempo --version 3.2.1
+
+tempo:
+  reportingEnabled: false          # bez wysyłania anonimowych statystyk do Grafana Labs
+  retention: 72h                   # trace'y są duże: 3 dni wystarczą do ćwiczeń
+
+  receivers:
+    # Używamy OTLP (od kolektora). Domyślne odbiorniki Jaegera zostają, bo chart
+    # odwołuje się do nich w szablonie Service; po prostu nikt do nich nie wysyła.
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+
+  # Metrics generator: Tempo liczy metryki z trace'ów i wysyła je do Prometheusa
+  # przez remote_write:
+  #   - span-metrics: liczba wywołań, błędów i rozkład czasu dla każdej operacji (RED),
+  #   - service-graphs: kto kogo wywołuje (mapa serwisów w Grafanie).
+  metricsGenerator:
+    enabled: true
+    storage:
+      remote_write:
+        - url: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090/api/v1/write
+          send_exemplars: true     # przykładowe trace_id dołączone do metryk
+  overrides:
+    defaults:
+      metrics_generator:
+        processors:
+          - span-metrics
+          - service-graphs
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+
+persistence:
+  enabled: true
+  storageClassName: local-path
+  size: 10Gi
+
+nodeSelector:
+  role: observability
+tolerations:
+  - key: dedicated
+    operator: Equal
+    value: observability
+    effect: NoSchedule
+
+serviceMonitor:
+  enabled: true                    # metryki samego Tempo w Prometheusie
